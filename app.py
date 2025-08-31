@@ -149,11 +149,10 @@ with col2:
 st.markdown("---")
 st.header("📈 กราฟคุณสมบัติของรูปภาพ")
 
-# Feature examples: image size, channels, mean/std, edges count
 h, w = processed.shape[:2]
 channels = 1 if len(processed.shape) == 2 else processed.shape[2]
 
-# Compute grayscale for histogram no matter what
+# คำนวณ grayscale สำหรับ metric
 if aux_for_graph is None:
     gray_all = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY) if channels == 3 else processed
 else:
@@ -162,8 +161,7 @@ else:
 mean_val = float(np.mean(gray_all))
 std_val = float(np.std(gray_all))
 
-# If edges image (binary), count edges (non-zero)
-edge_pixels = int(np.count_nonzero(processed)) if processed.ndim == 2 and processed.dtype != np.float32 and processed.max() in (1, 255) else None
+edge_pixels = int(np.count_nonzero(processed)) if processed.ndim == 2 and processed.max() in (1, 255) else None
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("กว้าง (px)", w)
@@ -174,12 +172,41 @@ m4.metric("Std Gray", f"{std_val:.2f}")
 if edge_pixels is not None:
     st.info(f"จำนวนพิกเซลที่เป็นเส้นขอบ (Edges): {edge_pixels:,} px")
 
-# Plot histogram
-fig = plt.figure(figsize=(6,4))
-plt.hist(gray_all.ravel(), bins=32, range=(0, 255))
-plt.title("Histogram ของความเข้มระดับเทา (0–255)")
-plt.xlabel("ค่าความเข้ม")
-plt.ylabel("จำนวนพิกเซล")
-st.pyplot(fig)
+# ---------------------- Graph Options ----------------------
+st.subheader("เลือกชนิดกราฟ Histogram")
+graph_type = st.radio(
+    "ชนิดของกราฟ",
+    ["Gray Histogram", "RGB Histogram"],
+    horizontal=True
+)
 
-st.caption("หมายเหตุ: หากต้องการกราฟ RGB ให้ปิดโหมด Grayscale/Threshold/Canny และเลือกภาพสี")
+if graph_type == "Gray Histogram":
+    fig = plt.figure(figsize=(6, 4))
+    plt.hist(gray_all.ravel(), bins=32, range=(0, 255), color="gray")
+    plt.title("Histogram of gray level intensity (0–255)")
+    plt.xlabel("Intensity value")
+    plt.ylabel("Number of pixels")
+    st.pyplot(fig)
+
+elif graph_type == "RGB Histogram":
+    fig = plt.figure(figsize=(6, 4))
+    color_map = {"b": "blue", "g": "green", "r": "red"}
+    for i, col in enumerate(("b", "g", "r")):
+        hist = cv2.calcHist([processed], [i], None, [32], [0, 256])
+        plt.plot(hist, color=color_map[col])
+        plt.xlim([0, 32])
+    plt.title("Histogram of RGB channels (R, G, B)")
+    plt.xlabel("Bins")
+    plt.ylabel("Number of pixels")
+    st.pyplot(fig)
+
+# ---------------------- Save Processed Image ----------------------
+st.subheader("💾 ดาวน์โหลดผลลัพธ์")
+buf = io.BytesIO()
+cv_to_pil(processed).save(buf, format="PNG")
+st.download_button(
+    label="ดาวน์โหลดรูปหลังประมวลผล (PNG)",
+    data=buf.getvalue(),
+    file_name="processed_image.png",
+    mime="image/png"
+)
